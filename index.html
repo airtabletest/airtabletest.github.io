@@ -10,6 +10,15 @@
 		padding-bottom: 50px;
 	}
 	
+	.view-form-group {
+		margin-bottom: 20px;
+		border: solid 5px #cccccc;
+	}
+	
+	.view-form-row {
+		margin-left: 100px;
+	}
+	
 	.tree-header {
 		height: 20px;
 		border-bottom: solid 5px #444444;
@@ -33,6 +42,7 @@
 	}
 
 	.view-indication {
+		margin-top: 100px;
 		margin-bottom: 20px;
 		border: solid 5px #ff0000;
 	}
@@ -61,7 +71,7 @@
 </style>
 </head>
 <body>
-<div id="content-table"></div>
+<div id="content-forms"></div>
 <div id="content-tree"></div>
 
 <script src="https://www.gstatic.com/firebasejs/5.5.9/firebase.js"></script>
@@ -75,8 +85,15 @@ DBData.Drug = function()
 {
 	this.name = "";
 	this.forms = [new DBData.Form()];
+	this.formGroups = [new DBData.FormGroup()];
 	this.indications = [new DBData.Indication()];
 	this.contraindications = "";
+}
+
+DBData.FormGroup = function()
+{
+	this.group = "";
+	this.forms = [new DBData.Form()];
 }
 
 DBData.Form = function()
@@ -118,18 +135,35 @@ DBUtils.newData = function()
 	DBUtils.onDataChanged(context);
 }
 
-// ------ FORM ----------
-DBUtils.addNewForm = function(context)
+// ------ FORM GROUP ----------
+DBUtils.addNewFormGroup = function(context)
 {
-	context.forms.push(new DBData.Form());
+	context.formGroups.push(new DBData.FormGroup());
 	DBUtils.onDataChanged(context);
 }
 
-DBUtils.deleteForm = function(context, formIndex)
+DBUtils.deleteFormGroup = function(context, formGroupIndex)
 {
-	context.forms.splice(formIndex, 1);
-	if(context.forms.length == 0) {
-		DBUtils.addNewForm(context, formIndex);
+	context.formGroups.splice(formGroupIndex, 1);
+	if(context.formGroups.length == 0) {
+		DBUtils.addNewFormGroup(context, formGroupIndex);
+	}else{
+		DBUtils.onDataChanged(context);
+	}
+}
+
+// ------ FORM ----------
+DBUtils.addNewForm = function(context, parentFormGroup)
+{
+	parentFormGroup.forms.push(new DBData.Form());
+	DBUtils.onDataChanged(context);
+}
+
+DBUtils.deleteForm = function(context, parentFormGroup, formIndex)
+{
+	parentFormGroup.forms.splice(formIndex, 1);
+	if(parentFormGroup.forms.length == 0) {
+		DBUtils.addNewForm(context, parentFormGroup);
 	}else{
 		DBUtils.onDataChanged(context);
 	}
@@ -189,7 +223,7 @@ DBUtils.deleteDosage = function(context, parentRule, doseIndex)
 DBUtils.onDataChanged = function(drugData)
 {
 	initUI(drugData);
-	Main.db.updateData(JSON.parse(JSON.stringify(drugData)));
+	//Main.db.updateData(JSON.parse(JSON.stringify(drugData)));
 }
 </script>
 <script>
@@ -243,6 +277,93 @@ function populateTemplate(template, key, value)
 }
 
 
+</script>
+<script>
+var TEMPLATE_FORM_GROUP = `
+	<div class="view-form-group" id="$id$">
+		<div class="tree-header">
+			<input type="text" class="tree-header-element" placeholder="Darreichungsart"></input>
+			<button class="tree-header-element" id="btn-form-group-add">add</button>
+			<button class="tree-header-element" id="btn-form-group-delete">delete</button>
+		</div>
+		<div class="view-form-group-body">
+			$body$
+		</div>
+	</div>
+`;
+
+
+function FormGroupView(context, parentDrug, _data)
+{
+	var formGroup = _data;
+	var id = "view-form-group-" + IndicationView.getUniqueID();
+	var view = undefined;
+	var viewBody = undefined;
+	var input = undefined;
+	
+	var children = [];
+	
+	this.toHtml = function()
+	{
+		var body = "";
+		formGroup.forms.forEach(function(ruleData){
+			var formView = new FormView(context, formGroup, ruleData);
+			children.push(formView);
+			body += formView.toHtml();
+		});
+		
+		html = TEMPLATE_FORM_GROUP;
+		html = populateTemplate(html, "id", id);
+		html = populateTemplate(html, "body", body);
+		return html;
+	}
+	
+	this.onViewAdded = function()
+	{
+		children.forEach(function(child){
+			child.onViewAdded();
+		});
+		
+		view = document.getElementById(id);
+		input = view.getElementsByClassName('tree-header-element')[0];
+		input.onchange = this.onInputChange;
+		input.value = formGroup.group;
+		
+		// btn add
+		view.getElementsByClassName('tree-header-element')[1].onclick = function(){
+			DBUtils.addNewFormGroup(context);
+		};
+		
+		// btn delete
+		view.getElementsByClassName('tree-header-element')[2].onclick = function(){
+			DBUtils.deleteFormGroup(context, getIndexInParent());
+		};
+	}
+	
+	var getIndexInParent = function()
+	{
+		var list = view.parentNode.getElementsByClassName("view-form-group");
+		for (var i = 0; i < list.length; i++) {
+			if (list[i].id == id) return i;
+		}
+		return -1;
+	}
+	
+	this.onInputChange = function()
+	{
+		formGroup.group = input.value;
+		DBUtils.onDataChanged(context);
+	}
+	
+	return this;
+}
+
+// Class Variables
+FormGroupView.idCounter = -1;
+FormGroupView.getUniqueID = function() {
+	FormGroupView.idCounter++;
+	return FormGroupView.idCounter;
+};
 </script>
 <script>
 var TEMPLATE_TABLE = `
@@ -323,17 +444,18 @@ TableView.getUniqueID = function() {
 var TEMPLATE_TABLE_FORM = `
 	<div class="view-form-row" id="$id$">
 		<div class="">
-			<input class="view-cell-form" type="text"></input>
-			<input class="view-cell-mg" type="text"></input>
-			<input class="view-cell-factor" type="text"></input>
-			<input class="view-cell-metric" type="text"></input>
+			<input class="view-cell-form" type="text" placeholder="Darreichungsform"></input>
+			<input class="view-cell-mg" type="text" placeholder="Wirkstoff in mg"></input>
+			<input class="view-cell-factor" type="text" placeholder="Wirkstoff in ??"></input>
+			<input class="view-cell-metric" type="text" placeholder="Metrik"></input>
+			<button class="view-form-btn-add" id="btn-form-add">add</button>
 			<button class="view-form-btn-delete" id="btn-form-delete">delete</button>
 		</div>
 	</div>
 `;
 
 
-function FormView(context, _data)
+function FormView(context, parentFormGroup, _data)
 {
 	var form = _data;
 	var id = "view-form-row-" + FormView.getUniqueID();
@@ -375,8 +497,12 @@ function FormView(context, _data)
 		inputMetric.onchange = this.onInputChange;
 		inputMetric.value = form.metric;
 		
+		view.getElementsByClassName("view-form-btn-add")[0].onclick = function(){
+			DBUtils.addNewForm(context, parentFormGroup);
+		};
+		
 		view.getElementsByClassName("view-form-btn-delete")[0].onclick = function(){
-			DBUtils.deleteForm(context, getIndexInParent());
+			DBUtils.deleteForm(context, parentFormGroup, getIndexInParent());
 		};
 	}
 	
@@ -413,9 +539,9 @@ var TEMPLATE_INDICATION = `
 	<div class="view-indication" id="$id$">
 		<div class="tree-header">
 			<input type="text" class="tree-header-element" placeholder="Indikation"></input>
-			<button class="tree-header-element" id="btn-indication-add">add</btn>
-			<button class="tree-header-element" id="btn-indication-hide">show/hide</btn>
-			<button class="tree-header-element" id="btn-indication-delete">delete</btn>
+			<button class="tree-header-element" id="btn-indication-add">add</button>
+			<button class="tree-header-element" id="btn-indication-hide">show/hide</button>
+			<button class="tree-header-element" id="btn-indication-delete">delete</button>
 		</div>
 		<div class="view-indication-body">
 			$body$
@@ -507,8 +633,8 @@ var TEMPLATE_RULE = `
 	<div class="view-rule" id="$id$">
 		<div class="tree-header">
 			<input type="text" class="tree-header-element" placeholder="Regel"></input>
-			<button class="tree-header-element" id="btn-rule-add">add</btn>
-			<button class="tree-header-element" id="btn-rule-delete">delete</btn>
+			<button class="tree-header-element" id="btn-rule-add">add</button>
+			<button class="tree-header-element" id="btn-rule-delete">delete</button>
 		</div>
 		<div class="view-rule-body">
 			$body$
@@ -592,9 +718,9 @@ var TEMPLATE_DOSE = `
 	<div class="view-dose" id="$id$">
 		<div class="tree-header">
 			<p class="tree-header-element"></p>
-			<button class="tree-header-element" id="btn-dose-change">change</btn>
-			<button class="tree-header-element" id="btn-dose-add">add</btn>
-			<button class="tree-header-element" id="btn-dose-delete">delete</btn>
+			<button class="tree-header-element" id="btn-dose-change">change</button>
+			<button class="tree-header-element" id="btn-dose-add">add</button>
+			<button class="tree-header-element" id="btn-dose-delete">delete</button>
 		</div>
 		<div class="view-dose-body">
 			<input class="view-input-dose" type="text" placeholder="Dosierung"></input>
@@ -667,7 +793,7 @@ function DoseView(context, parentRule, _data)
 		{
 			title = "";
 			dose.forms.forEach(function(index){
-				title += " " + context.forms[index].form + "[" + context.forms[index].mg + "mg]";
+				title += ", " + context.formGroups[index].group;
 			});
 		}	
 		titleForms.innerHTML = title;
@@ -702,13 +828,13 @@ function DoseView(context, parentRule, _data)
 		}else
 		{
 			// -------- CONSTRUCT HTML SELECTOR -----------
-			for(var i = 0; i < context.forms.length; i++) 
+			for(var i = 0; i < context.formGroups.length; i++) 
 			{
 				var checkbox = TEMPLATE_SELECTOR_FORM;
 				for(var r = 0; r < 3; r++) {
-					checkbox = populateTemplate(checkbox, "value", context.forms[i].form);
+					checkbox = populateTemplate(checkbox, "value", context.formGroups[i].group);
 				}
-				checkbox = populateTemplate(checkbox, "label", context.forms[i].form + "[" + context.forms[i].mg + "mg]");
+				checkbox = populateTemplate(checkbox, "label", context.formGroups[i].group);
 				checkbox = populateTemplate(checkbox, "checked", dose.forms.includes(i) ? 'checked="checked"' : "");
 				html += checkbox;
 			}
@@ -755,15 +881,17 @@ function main(){
 
 function initUI(drugData)
 {
+	var content = "";
 	var views = [];
 	
 	// loop over all forms
-	var table = new TableView(drugData);
-	views.push(table);
-	document.getElementById("content-table").innerHTML = table.toHtml();
+	drugData.formGroups.forEach(function(formGroup) {
+		var view = new FormGroupView(drugData, drugData, formGroup);
+		views.push(view);
+		content += view.toHtml();
+	});
 	
 	// loop over all indications
-	var content = "";
 	drugData.indications.forEach(function(indicationData) {
 		var view = new IndicationView(drugData, drugData, indicationData);
 		views.push(view);
