@@ -74,7 +74,7 @@
 </style>
 </head>
 <body>
-<p>version: 0.05</p>
+<p>version: 0.06</p>
 <div id="content-forms"></div>
 <div class="seperator"></div>
 <div id="content-tree"></div>
@@ -89,7 +89,6 @@ function DBData(){}
 DBData.Drug = function()
 {
 	this.name = "";
-	this.forms = [new DBData.Form()];
 	this.formGroups = [new DBData.FormGroup()];
 	this.indications = [new DBData.Indication()];
 	this.contraindications = "";
@@ -874,7 +873,7 @@ Main.db = DB();
 function main(){
 	this.loadData().then(function(doc) {
 		console.log(doc.data());
-		if (doc.data().forms == undefined) 
+		if (doc.data().indications == undefined) 
 		{
 			DBUtils.newData();
 		}
