@@ -1,0 +1,782 @@
+<meta charset="UTF-8"> 
+<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0' />
+<head>
+<style>
+	html {
+		width: 60%;
+	}
+	
+	.view-table {
+		padding-bottom: 50px;
+	}
+	
+	.tree-header {
+		height: 20px;
+		border-bottom: solid 5px #444444;
+	}
+	
+	.tree-header-element {
+		float:left;
+		max-width: 10%;
+	}
+	
+	input.tree-header-element {
+		width: 100%;
+		max-width: 70%;
+	}
+	
+	p.tree-header-element {
+		margin: 0;
+		padding-right: 20px;
+		width: 100%;
+		max-width: 70%;
+	}
+
+	.view-indication {
+		margin-bottom: 20px;
+		border: solid 5px #ff0000;
+	}
+	
+	.view-indication-header {
+		background-color: #880000;
+	}
+	
+	.view-rule {
+		margin-left: 100px;
+		border: solid 5px #ccccff;
+	}
+	
+	.view-dose {
+		margin-left: 100px;
+		border: solid 5px #0000ff;
+	}
+	
+	.view-input-dose {
+		width: 100%;
+	}
+	
+	.view-input-maxdose {
+		width: 100%;
+	}
+</style>
+</head>
+<body>
+<div id="content-table"></div>
+<div id="content-tree"></div>
+
+<script src="https://www.gstatic.com/firebasejs/5.5.9/firebase.js"></script>
+<script>
+// -----------------------------
+//             DATA 
+// -----------------------------
+
+function DBData(){}
+DBData.Drug = function()
+{
+	this.name = "";
+	this.forms = [new DBData.Form()];
+	this.indications = [new DBData.Indication()];
+	this.contraindications = "";
+}
+
+DBData.Form = function()
+{
+	this.form = "";
+	this.mg = 0;
+	this.factor = 0;
+	this.metric = "";
+}
+
+DBData.Indication = function()
+{
+	this.indication = "";
+	this.rules = [new DBData.Rule()];
+}
+
+DBData.Rule = function()
+{
+	this.rule = "";
+	this.doses = [new DBData.Dose()];
+}
+
+DBData.Dose = function()
+{
+	this.forms = [];
+	this.dose = "";
+	this.max_dose = "";
+}
+
+// -----------------------------
+//             DB UTILS 
+// -----------------------------
+
+function DBUtils(){}
+
+DBUtils.newData = function()
+{
+	context = JSON.parse(JSON.stringify(new DBData.Drug()));
+	DBUtils.onDataChanged(context);
+}
+
+// ------ FORM ----------
+DBUtils.addNewForm = function(context)
+{
+	context.forms.push(new DBData.Form());
+	DBUtils.onDataChanged(context);
+}
+
+DBUtils.deleteForm = function(context, formIndex)
+{
+	context.forms.splice(formIndex, 1);
+	if(context.forms.length == 0) {
+		DBUtils.addNewForm(context, formIndex);
+	}else{
+		DBUtils.onDataChanged(context);
+	}
+}
+
+// ------ INDICATION ----------
+DBUtils.addNewIndication = function(context)
+{
+	context.indications.push(new DBData.Indication());
+	DBUtils.onDataChanged(context);
+}
+
+DBUtils.deleteIndication = function(context, indicationIndex)
+{
+	context.indications.splice(indicationIndex, 1);
+	if(context.indications.length == 0) {
+		DBUtils.addNewIndication(context);
+	} else {
+		DBUtils.onDataChanged(context);
+	}
+}
+
+// ------ RULE ----------
+DBUtils.addNewRule = function(context, parentIndication)
+{
+	parentIndication.rules.push(new DBData.Rule());
+	DBUtils.onDataChanged(context);
+}
+
+DBUtils.deleteRule = function(context, parentIndication, ruleIndex)
+{
+	parentIndication.rules.splice(ruleIndex, 1);
+	if(parentIndication.rules.length == 0) {
+		DBUtils.addNewRule(context, parentIndication);
+	}else{
+		DBUtils.onDataChanged(context);
+	}
+}
+
+// ------ DOSE ----------
+DBUtils.addNewDosage = function(context, parentRule)
+{
+	parentRule.doses.push(new DBData.Dose());
+	DBUtils.onDataChanged(context);
+}
+
+DBUtils.deleteDosage = function(context, parentRule, doseIndex)
+{
+	parentRule.doses.splice(doseIndex, 1);
+	if(parentRule.doses.length == 0) {
+		DBUtils.addNewDosage(context, parentRule);
+	}else{
+		DBUtils.onDataChanged(context);
+	}
+}
+
+DBUtils.onDataChanged = function(drugData)
+{
+	initUI(drugData);
+	Main.db.updateData(drugData);
+}
+</script>
+<script>
+// get parameters from URL
+COLLECTION_NAME = window.location.href.split("?")[1].split("/")[0];
+DOCUMENT_NAME = window.location.href.split("?")[1].split("/")[1];
+
+function DB()
+{
+	// member variables
+	var fb = undefined; 
+	
+	this.updateData = function(data) {
+		return fb.collection(COLLECTION_NAME).doc(DOCUMENT_NAME).update(data);
+	}
+	
+	this.loadData = function()
+	{
+		return fb.collection(COLLECTION_NAME).doc(DOCUMENT_NAME).get();
+	}
+	
+	// Initialize Firebase
+	this.init = function()
+	{
+		var config = {
+			apiKey: "AIzaSyD_S4kKaltLJTGYgpRfGdNPaOfAv7WDFr0",
+			authDomain: "medipad-96422.firebaseapp.com",
+			databaseURL: "https://medipad-96422.firebaseio.com",
+			projectId: "medipad-96422",
+			storageBucket: "medipad-96422.appspot.com",
+			messagingSenderId: "615403091110"
+		};
+		// initialize firestore
+		firebase.initializeApp(config);
+		fb = firebase.firestore();
+		// Disable deprecated features
+		fb.settings({ timestampsInSnapshots: true });
+	}
+	
+	this.init();
+	return this;
+}
+</script>
+<script>
+var TEMPLATE_VAR = "$";
+
+function populateTemplate(template, key, value)
+{
+	key = TEMPLATE_VAR + key + TEMPLATE_VAR;
+	return template.replace(key, value != undefined ? String(value) : "");
+}
+
+
+</script>
+<script>
+var TEMPLATE_TABLE = `
+	<div class="view-table" id="$id$">
+		<h2>$name$ - Darreichungs Form</h2>
+		<button class="table-form-btn" id="btn-form-add">add</button>
+		<div class="view-table-body">
+			$body$
+		</div>
+	</div>
+`;
+
+
+function TableView(context)
+{
+	var id = "view-table-" + TableView.getUniqueID();
+	var view = undefined;
+	var children = [];
+	
+	this.toHtml = function()
+	{
+		var body = "";
+		context.forms.forEach(function(formData) {
+			var formView = new FormView(context, formData);
+			children.push(formView);
+			body += formView.toHtml();
+		});		
+	
+		html = TEMPLATE_TABLE;
+		html = populateTemplate(html, "id", id);
+		html = populateTemplate(html, "name", COLLECTION_NAME);
+		html = populateTemplate(html, "body", body);
+		return html;
+	}
+	
+	this.onViewAdded = function()
+	{
+		children.forEach(function(child){
+			child.onViewAdded();
+		});
+		
+		view = document.getElementById(id);
+		document.getElementById("btn-form-add").onclick = function(){
+			DBUtils.addNewForm(context);
+		};
+	}
+	
+	var getIndexInParent = function()
+	{
+		var list = view.parentNode.getElementsByClassName("view-form-row");
+		for (var i = 0; i < list.length; i++) {
+			if (list[i].id == id) return i;
+		}
+		return -1;
+	}
+	
+	this.onInputChange = function()
+	{
+		children.forEach(function(child){
+			child.onViewAdded();
+		});
+		
+		indication.indication = input.value;
+		DBUtils.onDataChanged(context);
+	}
+	
+	return this;
+}
+
+// Class Variables
+TableView.idCounter = -1;
+TableView.getUniqueID = function() {
+	TableView.idCounter++;
+	return TableView.idCounter;
+};
+</script>
+<script>
+var TEMPLATE_TABLE_FORM = `
+	<div class="view-form-row" id="$id$">
+		<div class="">
+			<input class="view-cell-form" type="text"></input>
+			<input class="view-cell-mg" type="text"></input>
+			<input class="view-cell-factor" type="text"></input>
+			<input class="view-cell-metric" type="text"></input>
+			<button class="view-form-btn-delete" id="btn-form-delete">delete</button>
+		</div>
+	</div>
+`;
+
+
+function FormView(context, _data)
+{
+	var form = _data;
+	var id = "view-form-row-" + FormView.getUniqueID();
+	var view = undefined;
+	
+	var inputForm = undefined;
+	var inputMg = undefined;
+	var inputFactor = undefined;
+	var inputMetric = undefined;
+	
+	this.toHtml = function()
+	{	
+		html = TEMPLATE_TABLE_FORM;
+		html = populateTemplate(html, "id", id);
+		html = populateTemplate(html, "form", form.form);
+		html = populateTemplate(html, "mg", form.mg);
+		html = populateTemplate(html, "factor", form.factor);
+		html = populateTemplate(html, "metric", form.metric);
+		return html;
+	}
+	
+	this.onViewAdded = function()
+	{
+		view = document.getElementById(id);
+		
+		inputForm = view.getElementsByClassName('view-cell-form')[0];
+		inputForm.onchange = this.onInputChange;
+		inputForm.value = form.form;
+		
+		inputMg = view.getElementsByClassName('view-cell-mg')[0];
+		inputMg.onchange = this.onInputChange;
+		inputMg.value = form.mg;
+		
+		inputFactor = view.getElementsByClassName('view-cell-factor')[0];
+		inputFactor.onchange = this.onInputChange;
+		inputFactor.value = form.factor;
+		
+		inputMetric = view.getElementsByClassName('view-cell-metric')[0];
+		inputMetric.onchange = this.onInputChange;
+		inputMetric.value = form.metric;
+		
+		view.getElementsByClassName("view-form-btn-delete")[0].onclick = function(){
+			DBUtils.deleteForm(context, getIndexInParent());
+		};
+	}
+	
+	var getIndexInParent = function()
+	{
+		var list = view.parentNode.getElementsByClassName("view-form-row");
+		for (var i = 0; i < list.length; i++) {
+			if (list[i].id == id) return i;
+		}
+		return -1;
+	}
+	
+	this.onInputChange = function()
+	{
+		form.form = inputForm.value;
+		form.mg = inputMg.value;
+		form.factor = inputFactor.value;
+		form.metric = inputMetric.value;
+		DBUtils.onDataChanged(context);
+	}
+	
+	return this;
+}
+
+// Class Variables
+FormView.idCounter = -1;
+FormView.getUniqueID = function() {
+	FormView.idCounter++;
+	return FormView.idCounter;
+};
+</script>
+<script>
+var TEMPLATE_INDICATION = `
+	<div class="view-indication" id="$id$">
+		<div class="tree-header">
+			<input type="text" class="tree-header-element" placeholder="Indikation"></input>
+			<button class="tree-header-element" id="btn-indication-add">add</btn>
+			<button class="tree-header-element" id="btn-indication-hide">show/hide</btn>
+			<button class="tree-header-element" id="btn-indication-delete">delete</btn>
+		</div>
+		<div class="view-indication-body">
+			$body$
+		</div>
+	</div>
+`;
+
+
+function IndicationView(context, parentDrug, _data)
+{
+	var indication = _data;
+	var id = "view-indication-" + IndicationView.getUniqueID();
+	var view = undefined;
+	var viewBody = undefined;
+	var input = undefined;
+	
+	var children = [];
+	
+	this.toHtml = function()
+	{
+		var body = "";
+		indication.rules.forEach(function(ruleData){
+			var ruleView = new RuleView(context, indication, ruleData);
+			children.push(ruleView);
+			body += ruleView.toHtml();
+		});
+		
+		html = TEMPLATE_INDICATION;
+		html = populateTemplate(html, "id", id);
+		html = populateTemplate(html, "body", body);
+		return html;
+	}
+	
+	this.onViewAdded = function()
+	{
+		children.forEach(function(child){
+			child.onViewAdded();
+		});
+		
+		view = document.getElementById(id);
+		input = view.getElementsByClassName('tree-header-element')[0];
+		input.onchange = this.onInputChange;
+		input.value = indication.indication;
+		
+		// btn add
+		view.getElementsByClassName('tree-header-element')[1].onclick = function(){
+			DBUtils.addNewIndication(context);
+		};
+		
+		// btn show/hide
+		viewBody = view.getElementsByClassName("view-indication-body")[0];
+		view.getElementsByClassName('tree-header-element')[2].onclick = function(){
+			viewBody.style.display = viewBody.style.display != "none" ? "none" : "block";
+		};
+		
+		// btn delete
+		view.getElementsByClassName('tree-header-element')[3].onclick = function(){
+			DBUtils.deleteIndication(context, getIndexInParent());
+		};
+	}
+	
+	var getIndexInParent = function()
+	{
+		var list = view.parentNode.getElementsByClassName("view-indication");
+		for (var i = 0; i < list.length; i++) {
+			if (list[i].id == id) return i;
+		}
+		return -1;
+	}
+	
+	this.onInputChange = function()
+	{
+		indication.indication = input.value;
+		DBUtils.onDataChanged(context);
+	}
+	
+	return this;
+}
+
+// Class Variables
+IndicationView.idCounter = -1;
+IndicationView.getUniqueID = function() {
+	IndicationView.idCounter++;
+	return IndicationView.idCounter;
+};
+</script>
+<script>
+var TEMPLATE_RULE = `
+	<div class="view-rule" id="$id$">
+		<div class="tree-header">
+			<input type="text" class="tree-header-element" placeholder="Regel"></input>
+			<button class="tree-header-element" id="btn-rule-add">add</btn>
+			<button class="tree-header-element" id="btn-rule-delete">delete</btn>
+		</div>
+		<div class="view-rule-body">
+			$body$
+		</div>
+	</div>
+`
+
+function RuleView(context, parentIndication, _data)
+{
+	var rule = _data;
+	var id = "view-rule-" + RuleView.getUniqueID();
+	var view = undefined;
+	var input = undefined;
+	
+	var children = [];
+	
+	this.toHtml = function()
+	{
+		var body = "";
+		rule.doses.forEach(function(doseData){
+			var doseView = new DoseView(context, rule, doseData);
+			children.push(doseView);
+			body += doseView.toHtml();
+		});
+		
+		html = TEMPLATE_RULE;
+		html = populateTemplate(html, "id", id);
+		html = populateTemplate(html, "body", body);
+		return html;
+	}
+	
+	this.onViewAdded = function()
+	{
+		children.forEach(function(child){
+			child.onViewAdded();
+		});
+		
+		view = document.getElementById(id);
+		input = view.getElementsByClassName('tree-header-element')[0];
+		input.value = rule.rule;
+		input.onchange = this.onInputChange;
+		
+		// btn add
+		view.getElementsByClassName('tree-header-element')[1].onclick = function(){
+			DBUtils.addNewRule(context, parentIndication);
+		};
+		
+		// btn delete
+		view.getElementsByClassName('tree-header-element')[2].onclick = function(){
+			DBUtils.deleteDosage(context, parentRule, getIndexInParent());
+		};
+	}
+	
+	var getIndexInParent = function()
+	{
+		var list = view.parentNode.getElementsByClassName("view-rule");
+		for (var i = 0; i < list.length; i++) {
+			if (list[i].id == id) return i;
+		}
+		return -1;
+	}
+	
+	this.onInputChange = function()
+	{
+		rule.rule = input.value;
+		DBUtils.onDataChanged(context);
+	}
+	
+	return this;
+}
+
+// Class Variables
+RuleView.idCounter = -1;
+RuleView.getUniqueID = function() {
+	RuleView.idCounter++;
+	return RuleView.idCounter;
+};
+</script>
+<script>
+var TEMPLATE_DOSE = `
+	<div class="view-dose" id="$id$">
+		<div class="tree-header">
+			<p class="tree-header-element"></p>
+			<button class="tree-header-element" id="btn-dose-change">change</btn>
+			<button class="tree-header-element" id="btn-dose-add">add</btn>
+			<button class="tree-header-element" id="btn-dose-delete">delete</btn>
+		</div>
+		<div class="view-dose-body">
+			<input class="view-input-dose" type="text" placeholder="Dosierung"></input>
+			<input class="view-input-maxdose" type="text" placeholder="Max. Tagesdosis"></input>
+			<div class="view-selector-form"></div>
+		</div>
+	</div>
+`
+
+var TEMPLATE_SELECTOR_FORM = `
+	<input type="checkbox" class="checkbox-form" name="type" id="$value$ "value="$value$" $checked$/>
+	<label for="$value$">$label$</label>
+`;
+
+
+function DoseView(context, parentRule, _data)
+{
+	var dose = _data;
+	var id = "view-dose-" + DoseView.getUniqueID();
+	var view = undefined;
+	var viewSelector = undefined;
+	
+	var titleForms = undefined;
+	var inputDose = undefined;
+	var inputMaxDose = undefined;
+	
+	this.toHtml = function()
+	{
+		html = TEMPLATE_DOSE;
+		html = populateTemplate(html, "id", id);
+		return html;
+	}
+	
+	this.onViewAdded = function()
+	{
+		view = document.getElementById(id);
+		viewSelector = view.getElementsByClassName("view-selector-form")[0];
+		
+		titleForms = view.getElementsByClassName('tree-header-element')[0];
+		updateTitle();
+		
+		inputDose = view.getElementsByClassName('view-input-dose')[0];
+		inputDose.value = dose.dose;
+		inputDose.onchange = this.onInputChange;
+		
+		inputMaxDose = view.getElementsByClassName('view-input-maxdose')[0];
+		inputMaxDose.value = dose.max_dose;
+		inputMaxDose.onchange = this.onInputChange;
+		
+		// btn change
+		view.getElementsByClassName('tree-header-element')[1].onclick = function(){
+			toggleSelector();
+		};
+		
+		// btn add
+		view.getElementsByClassName('tree-header-element')[2].onclick = function(){
+			DBUtils.addNewDosage(context, parentRule);
+		};
+		
+		// btn delete
+		view.getElementsByClassName('tree-header-element')[3].onclick = function(){
+			DBUtils.deleteDosage(context, parentRule, getIndexInParent());
+		};
+	}
+	
+	var updateTitle = function()
+	{
+		var title = "Beliebig";
+		if(dose.forms.length > 0)
+		{
+			title = "";
+			dose.forms.forEach(function(index){
+				title += " " + context.forms[index].form + "[" + context.forms[index].mg + "mg]";
+			});
+		}	
+		titleForms.innerHTML = title;
+	}
+	
+	var getIndexInParent = function()
+	{
+		var list = view.parentNode.getElementsByClassName("view-dose");
+		for (var i = 0; i < list.length; i++) {
+			if (list[i].id == id) return i;
+		}
+		return -1;
+	}
+	
+	var toggleSelector = function()
+	{
+		var html = "";
+		if (viewSelector.innerHTML.length != 0)
+		{
+			// --------------- HIDE CHECKBOXES -----------
+			// store selected forms
+			var checkboxes = viewSelector.getElementsByClassName("checkbox-form");
+			dose.forms = []
+			for(var i = 0; i < checkboxes.length; i++)
+			{
+				if(checkboxes[i].checked){
+					dose.forms.push(i);
+				}
+			}
+			updateTitle();
+			DBUtils.onDataChanged(context);
+		}else
+		{
+			// -------- CONSTRUCT HTML SELECTOR -----------
+			for(var i = 0; i < context.forms.length; i++) 
+			{
+				var checkbox = TEMPLATE_SELECTOR_FORM;
+				for(var r = 0; r < 3; r++) {
+					checkbox = populateTemplate(checkbox, "value", context.forms[i].form);
+				}
+				checkbox = populateTemplate(checkbox, "label", context.forms[i].form + "[" + context.forms[i].mg + "mg]");
+				checkbox = populateTemplate(checkbox, "checked", dose.forms.includes(i) ? 'checked="checked"' : "");
+				html += checkbox;
+			}
+		}
+		
+		// -------- update HTML -----
+		viewSelector.innerHTML = html;
+	}
+	
+	this.onInputChange = function()
+	{
+		dose.dose = inputDose.value;
+		dose.max_dose = inputMaxDose.value;
+		DBUtils.onDataChanged(context);
+	}
+	
+	return this;
+}
+
+// Class Variables
+DoseView.idCounter = -1;
+DoseView.getUniqueID = function() {
+	DoseView.idCounter++;
+	return DoseView.idCounter;
+};
+</script>
+<script>
+
+function Main(){}
+Main.db = DB();
+
+function main(){
+	this.loadData().then(function(doc) {
+		if (doc.data().new != undefined) 
+		{
+			DBUtils.newData();
+		}
+		else
+		{
+			initUI(doc.data());	
+		}
+	});
+};
+
+function initUI(drugData)
+{
+	var views = [];
+	
+	// loop over all forms
+	var table = new TableView(drugData);
+	views.push(table);
+	document.getElementById("content-table").innerHTML = table.toHtml();
+	
+	// loop over all indications
+	var content = "";
+	drugData.indications.forEach(function(indicationData) {
+		var view = new IndicationView(drugData, drugData, indicationData);
+		views.push(view);
+		content += view.toHtml();
+	});
+	document.getElementById("content-tree").innerHTML = content;
+	
+	// fire onViewAdded Event
+	views.forEach(function(view){
+		view.onViewAdded();
+	});
+}
+
+setTimeout(main, 2000);
+</script>
+</body>
