@@ -223,7 +223,7 @@ DBUtils.deleteDosage = function(context, parentRule, doseIndex)
 DBUtils.onDataChanged = function(drugData)
 {
 	initUI(drugData);
-	//Main.db.updateData(JSON.parse(JSON.stringify(drugData)));
+	Main.db.updateData(JSON.parse(JSON.stringify(drugData)));
 }
 </script>
 <script>
