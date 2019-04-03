@@ -19,6 +19,10 @@
 		margin-left: 100px;
 	}
 	
+	.seperator {
+		margin-top: 150px;
+	}
+	
 	.tree-header {
 		height: 20px;
 		border-bottom: solid 5px #444444;
@@ -42,7 +46,6 @@
 	}
 
 	.view-indication {
-		margin-top: 100px;
 		margin-bottom: 20px;
 		border: solid 5px #ff0000;
 	}
@@ -71,8 +74,9 @@
 </style>
 </head>
 <body>
-<p>version: 0.04</p>
+<p>version: 0.05</p>
 <div id="content-forms"></div>
+<div class="seperator"></div>
 <div id="content-tree"></div>
 
 <script src="https://www.gstatic.com/firebasejs/5.5.9/firebase.js"></script>
@@ -869,6 +873,7 @@ Main.db = DB();
 
 function main(){
 	this.loadData().then(function(doc) {
+		console.log(doc.data());
 		if (doc.data().forms == undefined) 
 		{
 			DBUtils.newData();
@@ -891,8 +896,10 @@ function initUI(drugData)
 		views.push(view);
 		content += view.toHtml();
 	});
+	document.getElementById("content-forms").innerHTML = content;
 	
 	// loop over all indications
+	content = "";
 	drugData.indications.forEach(function(indicationData) {
 		var view = new IndicationView(drugData, drugData, indicationData);
 		views.push(view);
