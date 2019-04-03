@@ -114,7 +114,7 @@ function DBUtils(){}
 
 DBUtils.newData = function()
 {
-	context = JSON.parse(JSON.stringify(new DBData.Drug()));
+	context = new DBData.Drug();
 	DBUtils.onDataChanged(context);
 }
 
@@ -189,7 +189,7 @@ DBUtils.deleteDosage = function(context, parentRule, doseIndex)
 DBUtils.onDataChanged = function(drugData)
 {
 	initUI(drugData);
-	Main.db.updateData(drugData);
+	Main.db.updateData(JSON.parse(JSON.stringify(drugData)));
 }
 </script>
 <script>
@@ -742,7 +742,7 @@ Main.db = DB();
 
 function main(){
 	this.loadData().then(function(doc) {
-		if (doc.data().new != undefined) 
+		if (doc.data().forms == undefined) 
 		{
 			DBUtils.newData();
 		}
