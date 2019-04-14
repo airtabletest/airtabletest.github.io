@@ -75,6 +75,7 @@
 </head>
 <body>
 <p>version: 0.06</p>
+<button id="btn-data-dump">...</button>
 <div id="content-forms"></div>
 <div class="seperator"></div>
 <div id="content-tree"></div>
@@ -232,16 +233,31 @@ DBUtils.onDataChanged = function(drugData)
 </script>
 <script>
 // get parameters from URL
-COLLECTION_NAME = window.location.href.split("?")[1].split("/")[0];
-DOCUMENT_NAME = window.location.href.split("?")[1].split("/")[1];
+COLLECTION_NAME = "";
+DOCUMENT_NAME = "";
+
+try 
+{
+	COLLECTION_NAME = window.location.href.split("?")[1].split("/")[0];
+	DOCUMENT_NAME = window.location.href.split("?")[1].split("/")[1];
+} catch (error) { }
+
 
 function DB()
 {
 	// member variables
 	var fb = undefined; 
 	
+	this.getIndices = function(){
+		return fb.collection('dbindex').doc('UDTQfyxgkVEDfUe5aXOu').get();
+	}
+	
 	this.updateData = function(data) {
 		return fb.collection(COLLECTION_NAME).doc(DOCUMENT_NAME).update(data);
+	}
+	
+	this.loadDocument = function(col, doc) {
+		return fb.collection(col).doc(doc).get();
 	}
 	
 	this.loadData = function()
@@ -871,18 +887,81 @@ function Main(){}
 Main.db = DB();
 
 function main(){
-	this.loadData().then(function(doc) {
-		console.log(doc.data());
-		if (doc.data().indications == undefined) 
-		{
-			DBUtils.newData();
-		}
-		else
-		{
-			initUI(doc.data());	
-		}
-	});
+	initDataDump();
+	
+	try 
+	{
+		this.loadData().then(function(doc) {
+			if (doc.data().indications == undefined) 
+			{
+				DBUtils.newData();
+			}
+			else
+			{
+				initUI(doc.data());	
+			}
+		});
+	} catch (error) {}
+	
+	document.getElementById("btn-data-dump").innerHTML = "download data";
 };
+
+function initDataDump()
+{
+	document.getElementById("btn-data-dump").onclick = function(){
+		Main.db.getIndices().then(function(doc){
+			Main.datadump = {
+				indices: doc.data()
+			};
+			this.dumpNextCollection();
+		});		
+	};
+}
+
+function dumpNextCollection()
+{			
+	var done = true;
+	for(var key in Main.datadump.indices) {
+		var index = Main.datadump.indices[key];
+		if (Main.datadump[key] == undefined)
+		{
+			Main.db.loadDocument(key, index).then(function(doc){
+				console.log("loading: " + key);
+				Main.datadump[key] = doc.data();
+				dumpNextCollection();
+			});	
+			done = false;
+			break;
+		}
+	}
+	
+	if (done)
+	{
+		Main.datadump.output = "";
+		for(var key in Main.datadump.indices)
+		{
+			Main.datadump.output += "#??#" + key + "#!!#" + JSON.stringify(Main.datadump[key]);
+		}
+		
+		document.getElementById("btn-data-dump").innerHTML = "copy data";
+		document.getElementById("btn-data-dump").onclick = function(){
+			copyDumpDataToClipboard();
+		}
+	}
+}
+
+function copyDumpDataToClipboard()
+{
+	const el = document.createElement('textarea');
+	el.value = Main.datadump.output;
+	document.body.appendChild(el);
+	el.select();
+	document.execCommand('copy');	
+	document.body.removeChild(el);
+	
+	alert('data copied!');
+}
+
 
 function initUI(drugData)
 {
