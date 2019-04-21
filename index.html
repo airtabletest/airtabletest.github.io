@@ -19,6 +19,15 @@
 		margin-left: 100px;
 	}
 	
+	.view-input-ci {
+		width: 100%;
+		margin-top: 20px;
+	}
+	.view-input-altnames {
+		width: 100%;
+		margin-bottom: 20px;
+	}
+
 	.seperator {
 		margin-top: 150px;
 	}
@@ -71,11 +80,15 @@
 	.view-input-maxdose {
 		width: 100%;
 	}
+	.view-input-frequency {
+		width: 100%;
+	}
 </style>
 </head>
 <body>
-<p>version: 0.07</p>
+<p>version: 0.08</p>
 <button id="btn-data-dump">...</button>
+<div id="content-info"></div>
 <div id="content-forms"></div>
 <div class="seperator"></div>
 <div id="content-tree"></div>
@@ -93,6 +106,7 @@ DBData.Drug = function()
 	this.formGroups = [new DBData.FormGroup()];
 	this.indications = [new DBData.Indication()];
 	this.contraindications = "";
+	this.altnames = "";
 }
 
 DBData.FormGroup = function()
@@ -104,9 +118,8 @@ DBData.FormGroup = function()
 DBData.Form = function()
 {
 	this.form = "";
-	this.mg = 0;
-	this.factor = 0;
-	this.metric = "";
+	this.mg = "";
+	this.factor = "";
 }
 
 DBData.Indication = function()
@@ -123,6 +136,7 @@ DBData.Rule = function()
 
 DBData.Dose = function()
 {
+	this.formGroups = [];
 	this.forms = [];
 	this.dose = "";
 	this.max_dose = "";
@@ -467,7 +481,6 @@ var TEMPLATE_TABLE_FORM = `
 			<input class="view-cell-form" type="text" placeholder="Darreichungsform"></input>
 			<input class="view-cell-mg" type="text" placeholder="Wirkstoff in mg"></input>
 			<input class="view-cell-factor" type="text" placeholder="Wirkstoff in ??"></input>
-			<input class="view-cell-metric" type="text" placeholder="Metrik"></input>
 			<button class="view-form-btn-add" id="btn-form-add">add</button>
 			<button class="view-form-btn-delete" id="btn-form-delete">delete</button>
 		</div>
@@ -484,7 +497,6 @@ function FormView(context, parentFormGroup, _data)
 	var inputForm = undefined;
 	var inputMg = undefined;
 	var inputFactor = undefined;
-	var inputMetric = undefined;
 	
 	this.toHtml = function()
 	{	
@@ -493,7 +505,6 @@ function FormView(context, parentFormGroup, _data)
 		html = populateTemplate(html, "form", form.form);
 		html = populateTemplate(html, "mg", form.mg);
 		html = populateTemplate(html, "factor", form.factor);
-		html = populateTemplate(html, "metric", form.metric);
 		return html;
 	}
 	
@@ -512,10 +523,6 @@ function FormView(context, parentFormGroup, _data)
 		inputFactor = view.getElementsByClassName('view-cell-factor')[0];
 		inputFactor.onchange = this.onInputChange;
 		inputFactor.value = form.factor;
-		
-		inputMetric = view.getElementsByClassName('view-cell-metric')[0];
-		inputMetric.onchange = this.onInputChange;
-		inputMetric.value = form.metric;
 		
 		view.getElementsByClassName("view-form-btn-add")[0].onclick = function(){
 			DBUtils.addNewForm(context, parentFormGroup);
@@ -540,7 +547,6 @@ function FormView(context, parentFormGroup, _data)
 		form.form = inputForm.value;
 		form.mg = inputMg.value;
 		form.factor = inputFactor.value;
-		form.metric = inputMetric.value;
 		DBUtils.onDataChanged(context);
 	}
 	
@@ -552,6 +558,69 @@ FormView.idCounter = -1;
 FormView.getUniqueID = function() {
 	FormView.idCounter++;
 	return FormView.idCounter;
+};
+</script>
+<script>
+var TEMPLATE_INFO = `
+	<div class="view-info" id="$id$">
+	<input class="view-input-ci" type="text" placeholder="Kontraindiation"></input>
+	<input class="view-input-altnames" type="text" placeholder="Handelsnamen"></input>
+	</div>
+`;
+
+
+function InfoView(context)
+{
+	// makes sure extra info is defined
+	if (context.contraindications === undefined) {
+		context.contraindications = "";
+	}
+
+	if (context.altnames === undefined) {
+		context.altnames = "";
+	}
+
+	var id = "view-info-" + FormView.getUniqueID();
+	var view = undefined;
+	
+	var inputCI = undefined;
+	var inputAltNames = undefined;
+	
+	this.toHtml = function()
+	{	
+		html = TEMPLATE_INFO;
+		html = populateTemplate(html, "id", id);
+		return html;
+	}
+	
+	this.onViewAdded = function()
+	{
+		view = document.getElementById(id);
+		
+		inputCI = view.getElementsByClassName('view-input-ci')[0];
+		inputCI.onchange = this.onInputChange;
+		inputCI.value = context.contraindications;
+
+		inputAltNames = view.getElementsByClassName('view-input-altnames')[0];
+		inputAltNames.onchange = this.onInputChange;
+		inputAltNames.value = context.altnames;
+	}
+	
+	this.onInputChange = function()
+	{
+		context.contraindications = inputCI.value;
+		context.altnames = inputAltNames.value;
+		DBUtils.onDataChanged(context);
+	}
+	
+	return this;
+}
+
+// Class Variables
+InfoView.idCounter = -1;
+InfoView.getUniqueID = function() {
+	InfoView.idCounter++;
+	return InfoView.idCounter;
 };
 </script>
 <script>
@@ -745,6 +814,8 @@ var TEMPLATE_DOSE = `
 		<div class="view-dose-body">
 			<input class="view-input-dose" type="text" placeholder="Dosierung"></input>
 			<input class="view-input-maxdose" type="text" placeholder="Max. Tagesdosis"></input>
+			<input class="view-input-frequency" type="text" placeholder="Frequenz z.B. <1-4>"></input>
+			<div class="view-selector-formgroup"></div>
 			<div class="view-selector-form"></div>
 		</div>
 	</div>
@@ -758,10 +829,16 @@ var TEMPLATE_SELECTOR_FORM = `
 
 function DoseView(context, parentRule, _data)
 {
+	if (_data.formGroups === undefined) {
+		_data.formGroups = _data.forms;
+		_data.forms = []; 
+	}
+
 	var dose = _data;
 	var id = "view-dose-" + DoseView.getUniqueID();
 	var view = undefined;
-	var viewSelector = undefined;
+	var viewSelectorFormGroup = undefined;
+	var viewSelectorForm = undefined;
 	
 	var titleForms = undefined;
 	var inputDose = undefined;
@@ -777,7 +854,8 @@ function DoseView(context, parentRule, _data)
 	this.onViewAdded = function()
 	{
 		view = document.getElementById(id);
-		viewSelector = view.getElementsByClassName("view-selector-form")[0];
+		viewSelectorFormGroup = view.getElementsByClassName("view-selector-formgroup")[0];
+		viewSelectorForm = view.getElementsByClassName("view-selector-form")[0];
 		
 		titleForms = view.getElementsByClassName('tree-header-element')[0];
 		updateTitle();
@@ -809,13 +887,24 @@ function DoseView(context, parentRule, _data)
 	var updateTitle = function()
 	{
 		var title = "Beliebig";
-		if(dose.forms.length > 0)
-		{
+		if (dose.formGroups.length > 0 || dose.forms.length > 0) {
 			title = "";
-			dose.forms.forEach(function(index){
-				title += ", " + context.formGroups[index].group;
-			});
-		}	
+		}
+
+		dose.formGroups.forEach(function(index){
+			title += ", " + context.formGroups[index].group;
+		});
+		dose.forms.forEach(function(index){
+			for(var i = 0; i < context.formGroups.length; i++)
+			{
+				if (index < context.formGroups[i].forms.length){
+					title += ", " + context.formGroups[i].forms[index].form;
+					break;
+				}
+				index -= context.formGroups[i].forms.length;
+			}
+
+		});
 		titleForms.innerHTML = title;
 	}
 	
@@ -831,11 +920,23 @@ function DoseView(context, parentRule, _data)
 	var toggleSelector = function()
 	{
 		var html = "";
-		if (viewSelector.innerHTML.length != 0)
+		var htmlForms = "";
+
+		if (viewSelectorFormGroup.innerHTML.length != 0)
 		{
 			// --------------- HIDE CHECKBOXES -----------
+			// store selected formgroups
+			var checkboxes = viewSelectorFormGroup.getElementsByClassName("checkbox-form");
+			dose.formGroups = []
+			for(var i = 0; i < checkboxes.length; i++)
+			{
+				if(checkboxes[i].checked){
+					dose.formGroups.push(i);
+				}
+			}
+
 			// store selected forms
-			var checkboxes = viewSelector.getElementsByClassName("checkbox-form");
+			var checkboxes = viewSelectorForm.getElementsByClassName("checkbox-form");
 			dose.forms = []
 			for(var i = 0; i < checkboxes.length; i++)
 			{
@@ -843,11 +944,13 @@ function DoseView(context, parentRule, _data)
 					dose.forms.push(i);
 				}
 			}
+
 			updateTitle();
 			DBUtils.onDataChanged(context);
 		}else
 		{
 			// -------- CONSTRUCT HTML SELECTOR -----------
+			// formgroups
 			for(var i = 0; i < context.formGroups.length; i++) 
 			{
 				var checkbox = TEMPLATE_SELECTOR_FORM;
@@ -855,13 +958,31 @@ function DoseView(context, parentRule, _data)
 					checkbox = populateTemplate(checkbox, "value", context.formGroups[i].group);
 				}
 				checkbox = populateTemplate(checkbox, "label", context.formGroups[i].group);
-				checkbox = populateTemplate(checkbox, "checked", dose.forms.includes(i) ? 'checked="checked"' : "");
+				checkbox = populateTemplate(checkbox, "checked", dose.formGroups.includes(i) ? 'checked="checked"' : "");
 				html += checkbox;
+			}
+
+			// forms
+			var formindex = 0;
+			for(var i = 0; i < context.formGroups.length; i++) 
+			{
+				for(var j = 0; j < context.formGroups[i].forms.length; j++){
+					var formname = context.formGroups[i].forms[j].form;
+					var checkbox = TEMPLATE_SELECTOR_FORM;
+					for(var r = 0; r < 3; r++) {
+						checkbox = populateTemplate(checkbox, "value", formname);
+					}
+					checkbox = populateTemplate(checkbox, "label", formname);
+					checkbox = populateTemplate(checkbox, "checked", dose.forms.includes(formindex) ? 'checked="checked"' : "");
+					htmlForms += checkbox;
+					formindex++;
+				}
 			}
 		}
 		
 		// -------- update HTML -----
-		viewSelector.innerHTML = html;
+		viewSelectorFormGroup.innerHTML = html;
+		viewSelectorForm.innerHTML = htmlForms;
 	}
 	
 	this.onInputChange = function()
@@ -976,6 +1097,10 @@ function initUI(drugData)
 	});
 	document.getElementById("content-forms").innerHTML = content;
 	
+	var viewCI = new InfoView(drugData);
+	views.push(viewCI);
+	document.getElementById("content-info").innerHTML = viewCI.toHtml();
+
 	// loop over all indications
 	content = "";
 	drugData.indications.forEach(function(indicationData) {
