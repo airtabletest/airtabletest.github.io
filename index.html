@@ -86,7 +86,7 @@
 </style>
 </head>
 <body>
-<p>version: 0.08</p>
+<p>version: 0.09</p>
 <button id="btn-data-dump">...</button>
 <div id="content-info"></div>
 <div id="content-forms"></div>
@@ -898,7 +898,7 @@ function DoseView(context, parentRule, _data)
 			for(var i = 0; i < context.formGroups.length; i++)
 			{
 				if (index < context.formGroups[i].forms.length){
-					title += ", " + context.formGroups[i].forms[index].form;
+					title += ", " + context.formGroups[i].forms[index].form + context.formGroups[i].forms[index].mg;
 					break;
 				}
 				index -= context.formGroups[i].forms.length;
@@ -967,7 +967,7 @@ function DoseView(context, parentRule, _data)
 			for(var i = 0; i < context.formGroups.length; i++) 
 			{
 				for(var j = 0; j < context.formGroups[i].forms.length; j++){
-					var formname = context.formGroups[i].forms[j].form;
+					var formname = context.formGroups[i].forms[j].form + '-' + context.formGroups[i].forms[j].mg;
 					var checkbox = TEMPLATE_SELECTOR_FORM;
 					for(var r = 0; r < 3; r++) {
 						checkbox = populateTemplate(checkbox, "value", formname);
