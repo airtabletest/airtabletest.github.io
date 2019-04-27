@@ -86,7 +86,7 @@
 </style>
 </head>
 <body>
-<p>version: 0.09</p>
+<p>version: 0.10</p>
 <button id="btn-data-dump">...</button>
 <div id="content-info"></div>
 <div id="content-forms"></div>
@@ -140,6 +140,7 @@ DBData.Dose = function()
 	this.forms = [];
 	this.dose = "";
 	this.max_dose = "";
+	this.frequency = "";
 }
 
 // -----------------------------
@@ -814,7 +815,7 @@ var TEMPLATE_DOSE = `
 		<div class="view-dose-body">
 			<input class="view-input-dose" type="text" placeholder="Dosierung"></input>
 			<input class="view-input-maxdose" type="text" placeholder="Max. Tagesdosis"></input>
-			<input class="view-input-frequency" type="text" placeholder="Frequenz z.B. <1-4>"></input>
+			<input class="view-input-frequency" type="text" placeholder="Frequenz z.B.: 1-4"></input>
 			<div class="view-selector-formgroup"></div>
 			<div class="view-selector-form"></div>
 		</div>
@@ -843,6 +844,7 @@ function DoseView(context, parentRule, _data)
 	var titleForms = undefined;
 	var inputDose = undefined;
 	var inputMaxDose = undefined;
+	var inputFrequency = undefined;
 	
 	this.toHtml = function()
 	{
@@ -867,6 +869,11 @@ function DoseView(context, parentRule, _data)
 		inputMaxDose = view.getElementsByClassName('view-input-maxdose')[0];
 		inputMaxDose.value = dose.max_dose;
 		inputMaxDose.onchange = this.onInputChange;
+
+		inputFrequency = view.getElementsByClassName('view-input-frequency')[0];
+		if (dose.frequency === undefined) { dose.frequency = ""; }
+		inputFrequency.value = dose.frequency;
+		inputFrequency.onchange = this.onInputChange;
 		
 		// btn change
 		view.getElementsByClassName('tree-header-element')[1].onclick = function(){
@@ -989,6 +996,7 @@ function DoseView(context, parentRule, _data)
 	{
 		dose.dose = inputDose.value;
 		dose.max_dose = inputMaxDose.value;
+		dose.frequency = inputFrequency.value;
 		DBUtils.onDataChanged(context);
 	}
 	
